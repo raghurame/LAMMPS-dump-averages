@@ -202,13 +202,6 @@ int main(int argc, char const *argv[])
 
 	dumpValues = readDumpfile (dumpValues, nColumns, nAtoms, inputDump, &nTimeframes);
 
-/*	for (int i = 0; i < nAtoms; ++i)
-	{
-		printf("%f\n", dumpValues[0][3][i]);
-		usleep (100000);
-	}
-*/
-
 	float **ensembleAvg, **ensembleStdev, **timeAvg, **timeStdev;
 
 	ensembleAvg = (float **) malloc (nTimesteps * sizeof (float *));
@@ -230,12 +223,6 @@ int main(int argc, char const *argv[])
 
 	ensembleAvg = computeEnsembleAvg (ensembleAvg, nTimesteps, dumpValues, nColumns, nAtoms);
 	timeAvg = computeTimeAvg (timeAvg, nTimesteps, dumpValues, nColumns, nAtoms);
-
-	for (int i = 0; i < nAtoms; ++i)
-	{
-		printf("%f\n", timeAvg[i][3]);
-		usleep (100000);
-	}
 
 	fclose (inputDump);
 	return 0;
