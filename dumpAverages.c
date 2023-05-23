@@ -1,9 +1,18 @@
+/*
+compute         bondTypes all property/local batom1 batom2
+compute         bondDist all bond/local engpot dist force engvib engrot engtrans omega velvib
+dump            bondStats all local 1000 dump.bonds c_bondTypes[*] c_bondDist[*]
+*/
+
 #include <stdio.h>
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <time.h>
+
+#define INPUTDUMPNAME "dumpFirst.bonds"
+#define NTIMETOSKIP 0
 
 int findNAtoms (int nAtoms, FILE *inputDump)
 {
@@ -112,6 +121,8 @@ int countNTimesteps (int nTimesteps, FILE *inputDump, int nAtoms, const char inp
 	pipeLineCount = popen (pipeString, "r");
 	fgets (lineString, 2000, pipeLineCount);
 	sscanf (lineString, "%d", &nTimesteps);
+	nTimesteps -= 9;
+	nTimesteps /= nAtoms;
 
 	return nTimesteps;
 }
@@ -129,8 +140,7 @@ float **computeEnsembleAvg (float **ensembleAvg, int nTimesteps, float ***dumpVa
 	float *sumColumns;
 	sumColumns = (float *) malloc (nColumns * sizeof (float));
 
-
-	for (int i = 0; i < nTimesteps; ++i)
+	for (int i = NTIMETOSKIP; i < nTimesteps; ++i)
 	{
 		sumColumns = init1dfloat (sumColumns, nColumns);
 
@@ -141,18 +151,42 @@ float **computeEnsembleAvg (float **ensembleAvg, int nTimesteps, float ***dumpVa
 				sumColumns[j] += dumpValues[i][j][k];
 			}
 
-			ensembleAvg[i][j] = sumColumns[j] / nColumns;
+			ensembleAvg[i][j] = sumColumns[j] / (float)nAtoms;
 		}
 	}
+
 	return ensembleAvg;
+}
+
+float **computeTimeAvg (float **timeAvg, int nTimesteps, float ***dumpValues, int nColumns, int nAtoms)
+{
+	float *sumColumns;
+	sumColumns = (float *) malloc (nColumns * sizeof (float));
+
+	for (int i = 0; i < nAtoms; ++i)
+	{
+		sumColumns = init1dfloat (sumColumns, nColumns);
+
+		for (int j = 0; j < nColumns; ++j)
+		{
+			for (int k = NTIMETOSKIP; k < nTimesteps; ++k)
+			{
+				sumColumns[j] += dumpValues[k][j][i];
+			}
+
+			timeAvg[i][j] = sumColumns[j] / (float)nColumns;
+		}
+	}
+
+	return timeAvg;
 }
 
 int main(int argc, char const *argv[])
 {
 	FILE *inputDump;
-	inputDump = fopen (argv[1], "r");
+	inputDump = fopen (INPUTDUMPNAME, "r");
 
-	int nAtoms = findNAtoms (nAtoms, inputDump), nColumns = findNColumns (nColumns, inputDump), nTimeframes = 0, nTimesteps = countNTimesteps (nTimesteps, inputDump, nAtoms, argv[1]);
+	int nAtoms = findNAtoms (nAtoms, inputDump), nColumns = findNColumns (nColumns, inputDump), nTimeframes = 0, nTimesteps = countNTimesteps (nTimesteps, inputDump, nAtoms, INPUTDUMPNAME);
 
 	float ***dumpValues;
 	dumpValues = (float ***) malloc (nTimesteps * sizeof (float **));
@@ -195,14 +229,13 @@ int main(int argc, char const *argv[])
 	}
 
 	ensembleAvg = computeEnsembleAvg (ensembleAvg, nTimesteps, dumpValues, nColumns, nAtoms);
+	timeAvg = computeTimeAvg (timeAvg, nTimesteps, dumpValues, nColumns, nAtoms);
 
-	for (int i = 0; i < nTimesteps; ++i)
+	for (int i = 0; i < nAtoms; ++i)
 	{
-		printf("%f\n", ensembleAvg[i][3]);
+		printf("%f\n", timeAvg[i][3]);
 		usleep (100000);
 	}
-
-	/*timeAvg = computeTimeAvg (timeAvg, nTimesteps, dumpValues, nColumns, nAtoms);*/
 
 	fclose (inputDump);
 	return 0;
