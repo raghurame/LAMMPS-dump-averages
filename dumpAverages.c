@@ -116,6 +116,37 @@ int countNTimesteps (int nTimesteps, FILE *inputDump, int nAtoms, const char inp
 	return nTimesteps;
 }
 
+float *init1dfloat (float *floatArray, int arrayLength)
+{
+	for (int i = 0; i < arrayLength; ++i) {
+		floatArray[i] = 0; }
+
+	return floatArray;
+}
+
+float **computeEnsembleAvg (float **ensembleAvg, int nTimesteps, float ***dumpValues, int nColumns, int nAtoms)
+{
+	float *sumColumns;
+	sumColumns = (float *) malloc (nColumns * sizeof (float));
+
+
+	for (int i = 0; i < nTimesteps; ++i)
+	{
+		sumColumns = init1dfloat (sumColumns, nColumns);
+
+		for (int j = 0; j < nColumns; ++j)
+		{
+			for (int k = 0; k < nAtoms; ++k)
+			{
+				sumColumns[j] += dumpValues[i][j][k];
+			}
+
+			ensembleAvg[i][j] = sumColumns[j] / nColumns;
+		}
+	}
+	return ensembleAvg;
+}
+
 int main(int argc, char const *argv[])
 {
 	FILE *inputDump;
@@ -137,19 +168,42 @@ int main(int argc, char const *argv[])
 
 	dumpValues = readDumpfile (dumpValues, nColumns, nAtoms, inputDump, &nTimeframes);
 
-	for (int i = 0; i < nAtoms; ++i)
+/*	for (int i = 0; i < nAtoms; ++i)
 	{
 		printf("%f\n", dumpValues[0][3][i]);
 		usleep (100000);
 	}
-
-/*	float *ensembleAvg, *timeAvg;
-	ensembleAvg = (float *) malloc (nTimeframes * sizeof (float));
-	timeAvg = (float *) malloc (nAtoms * sizeof (float));
-
-	ensembleAvg = computeEnsembleAvg (ensembleAvg, nTimeframes, dumpValues, nColumns, nAtoms);
-	timeAvg = computeTimeAvg (timeAvg, )
 */
+
+	float **ensembleAvg, **ensembleStdev, **timeAvg, **timeStdev;
+
+	ensembleAvg = (float **) malloc (nTimesteps * sizeof (float *));
+	ensembleStdev = (float **) malloc (nTimesteps * sizeof (float *));
+	timeAvg = (float **) malloc (nAtoms * sizeof (float *));
+	timeStdev = (float **) malloc (nAtoms * sizeof (float *));
+
+	for (int i = 0; i < nTimesteps; ++i)
+	{
+		ensembleAvg[i] = (float *) malloc (nColumns * sizeof (float));
+		ensembleStdev[i] = (float *) malloc (nColumns * sizeof (float));
+	}
+
+	for (int i = 0; i < nAtoms; ++i)
+	{
+		timeAvg[i] = (float *) malloc (nColumns * sizeof (float));
+		timeStdev[i] = (float *) malloc (nColumns * sizeof (float));
+	}
+
+	ensembleAvg = computeEnsembleAvg (ensembleAvg, nTimesteps, dumpValues, nColumns, nAtoms);
+
+	for (int i = 0; i < nTimesteps; ++i)
+	{
+		printf("%f\n", ensembleAvg[i][3]);
+		usleep (100000);
+	}
+
+	/*timeAvg = computeTimeAvg (timeAvg, nTimesteps, dumpValues, nColumns, nAtoms);*/
+
 	fclose (inputDump);
 	return 0;
 }
