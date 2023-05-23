@@ -13,6 +13,8 @@ dump            bondStats all local 1000 dump.bonds c_bondTypes[*] c_bondDist[*]
 
 #define INPUTDUMPNAME "dumpFirst.bonds"
 #define NTIMETOSKIP 0
+#define OUTPUTSTATSFILE_TIME "dump.time.stats"
+#define OUTPUTSTATSFILE_ENSEMBLE "dump.ensemble.stats"
 
 int findNAtoms (int nAtoms, FILE *inputDump)
 {
@@ -146,10 +148,8 @@ float **computeEnsembleAvg (float **ensembleAvg, int nTimesteps, float ***dumpVa
 
 		for (int j = 0; j < nColumns; ++j)
 		{
-			for (int k = 0; k < nAtoms; ++k)
-			{
-				sumColumns[j] += dumpValues[i][j][k];
-			}
+			for (int k = 0; k < nAtoms; ++k) {
+				sumColumns[j] += dumpValues[i][j][k]; }
 
 			ensembleAvg[i][j] = sumColumns[j] / (float)nAtoms;
 		}
@@ -169,16 +169,60 @@ float **computeTimeAvg (float **timeAvg, int nTimesteps, float ***dumpValues, in
 
 		for (int j = 0; j < nColumns; ++j)
 		{
-			for (int k = NTIMETOSKIP; k < nTimesteps; ++k)
-			{
-				sumColumns[j] += dumpValues[k][j][i];
-			}
+			for (int k = NTIMETOSKIP; k < nTimesteps; ++k) {
+				sumColumns[j] += dumpValues[k][j][i]; }
 
 			timeAvg[i][j] = sumColumns[j] / (float)nColumns;
 		}
 	}
 
 	return timeAvg;
+}
+
+float **computeEnsembleStdev (float **ensembleStdev, float **ensembleAvg, int nTimesteps, float ***dumpValues, int nColumns, int nAtoms)
+{
+	float *sumColumns;
+	sumColumns = (float *) malloc (nColumns * sizeof (float));
+
+	for (int i = NTIMETOSKIP; i < nTimesteps; ++i)
+	{
+		sumColumns = init1dfloat (sumColumns, nColumns);
+
+		for (int j = 0; j < nColumns; ++j)
+		{
+			for (int k = 0; k < nAtoms; ++k)
+			{
+				sumColumns[j] += (dumpValues[i][j][k] - ensembleAvg[i][j]) * (dumpValues[i][j][k] - ensembleAvg[i][j]);
+			}
+
+			ensembleStdev[i][j] = sqrt (sumColumns[j] / (nAtoms - 1));
+		}
+	}
+
+	return ensembleStdev;
+}
+
+float **computeTimeStdev (float **timeStdev, float **timeAvg, int nTimesteps, float ***dumpValues, int nColumns, int nAtoms)
+{
+	float *sumColumns;
+	sumColumns = (float *) malloc (nColumns * sizeof (float));
+
+	for (int i = 0; i < nAtoms; ++i)
+	{
+		sumColumns = init1dfloat (sumColumns, nColumns);
+
+		for (int j = 0; j < nColumns; ++j)
+		{
+			for (int k = NTIMETOSKIP; k < nTimesteps; ++k) 
+			{
+				sumColumns[j] += (dumpValues[k][j][i] - timeAvg[i][j]) * (dumpValues[k][j][i] - timeAvg[i][j]);
+			}
+
+			timeStdev[i][j] = sqrt (sumColumns[j] / (nTimesteps - 1));
+		}
+	}
+
+	return timeStdev;
 }
 
 int main(int argc, char const *argv[])
@@ -222,7 +266,25 @@ int main(int argc, char const *argv[])
 	}
 
 	ensembleAvg = computeEnsembleAvg (ensembleAvg, nTimesteps, dumpValues, nColumns, nAtoms);
+	ensembleStdev = computeEnsembleStdev (ensembleStdev, ensembleAvg, nTimesteps, dumpValues, nColumns, nAtoms);
 	timeAvg = computeTimeAvg (timeAvg, nTimesteps, dumpValues, nColumns, nAtoms);
+	timeStdev = computeTimeStdev (timeStdev, timeAvg, nTimesteps, dumpValues, nColumns, nAtoms);
+
+	FILE *outputStats_time, *outputStats_ensemble;
+	outputStats_time = fopen (OUTPUTSTATSFILE_TIME, "w");
+	outputStats_ensemble = fopen (OUTPUTSTATSFILE_ENSEMBLE, "w");
+
+	// Printing the ensemble average to file
+	for (int i = 0; i < nTimesteps; ++i)
+	{
+		for (int j = 0; j < nColumns; ++j) {
+			fprintf(outputStats_ensemble, "%f %f\t", ensembleAvg[i][j], ensembleStdev[i][j]); }
+
+		fprintf(outputStats_ensemble, "\n");
+	}
+
+	// Time average for various items in the dump file can be done 
+	// based on individual requirements
 
 	fclose (inputDump);
 	return 0;
